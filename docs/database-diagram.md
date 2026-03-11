@@ -1,3 +1,6 @@
+# Database diagram
+
+```mermaid
 erDiagram
     USERS {
         int id PK
@@ -45,3 +48,4 @@ erDiagram
     ROLES ||--o{ USER_ROLES : contains
     USERS ||--o{ NOTIFICATIONS : receives
     TASKS ||--o{ NOTIFICATIONS : generates
+```
