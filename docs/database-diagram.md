@@ -1,3 +1,6 @@
+# Database diagram
+
+```mermaid
 erDiagram
     USERS {
         int id PK
