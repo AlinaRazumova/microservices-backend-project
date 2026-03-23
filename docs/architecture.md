@@ -1,3 +1,4 @@
+```mermaid
 flowchart LR
 Client[Web Client]
 Auth[Auth Service]
@@ -12,5 +13,3 @@ Auth --> DB
 Task --> DB
 Task -. opcjonalnie .-> Notif
 Notif -. opcjonalnie .-> DB
-
-add architecture diagram
