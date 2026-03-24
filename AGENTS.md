@@ -1,37 +1,43 @@
 # AGENTS.md
 
-This project is based on a microservices architecture, where each service is responsible for a specific part of the system.
+This project is based on a microservices architecture. Each service is responsible for a specific business area of the system.
 
-## Services (Agents)
+## Microservices
 
 ### Auth Service
-Handles user authentication and authorization:
+Responsible for user identity and access management:
 - user registration
 - user login
 - JWT token generation and validation
-- role management
+- authorization for protected endpoints
+- user role assignment and verification
 
 ### Task Service
-Handles task management:
+Responsible for task management:
 - creating tasks
-- retrieving tasks
+- retrieving task list and task details
 - updating tasks
 - deleting tasks
 - assigning tasks to users
-- managing task status, priority and deadlines
+- managing status, priority and deadlines
+- filtering and searching tasks
 
 ### Notification Service (optional)
-Handles system notifications:
+Optional service planned as a future extension:
 - notifications about task assignment
-- notifications about status changes
-- reminders about deadlines
+- notifications about task status changes
+- reminders about approaching deadlines
 
 ## Communication
 
-- Client communicates with services via REST API
-- Services communicate with each other via HTTP REST
-- Authentication is handled using JWT tokens
+- The client communicates with the system through REST API
+- Microservices communicate with each other via HTTP REST
+- Authentication and authorization are based on JWT tokens
+- Only microservices can communicate with the database
+- The client does not access the database directly
 
 ## Notes
 
-Each service is developed independently and communicates through well-defined interfaces.
+Each microservice is developed independently and exposes well-defined interfaces.
+The current MVP focuses mainly on Auth Service and Task Service.
+Notification Service is treated as an optional extension.
