@@ -5,4 +5,4 @@ Academic project: microservices-based system with REST API, authentication, data
 
 Initial version prepared for academic project submission.
 
-update README - new project status
+update README - New Project Status
