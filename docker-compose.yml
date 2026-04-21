@@ -1,0 +1,21 @@
+version: "3.9"
+
+services:
+  auth-service:
+    build: ./auth-service
+    ports:
+      - "8001:8000"
+
+  task-service:
+    build: ./task-service
+    ports:
+      - "8002:8000"
+
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: tasks_db
+    ports:
+      - "5432:5432"
