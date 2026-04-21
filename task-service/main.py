@@ -44,6 +44,7 @@ class TaskResponse(BaseModel):
 
 @app.get("/", tags=["System"])
 def root():
+
     return {
         "message": "Task Service is running",
         "service": "task-service",
