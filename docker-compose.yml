@@ -1,0 +1,45 @@
+services:
+  db:
+    image: postgres:15
+    container_name: microservices_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: tasks_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  auth-service:
+    build:
+      context: ./auth-service
+    container_name: auth_service
+    restart: always
+    ports:
+      - "8001:8001"
+    environment:
+      AUTH_DATABASE_URL: postgresql://user:password@db:5432/tasks_db
+      JWT_SECRET_KEY: change_this_secret_key
+      JWT_ALGORITHM: HS256
+      JWT_EXPIRE_MINUTES: 60
+    depends_on:
+      - db
+
+  task-service:
+    build:
+      context: ./task-service
+    container_name: task_service
+    restart: always
+    ports:
+      - "8002:8002"
+    environment:
+      TASK_DATABASE_URL: postgresql://user:password@db:5432/tasks_db
+      JWT_SECRET_KEY: change_this_secret_key
+      JWT_ALGORITHM: HS256
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
