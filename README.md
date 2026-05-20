@@ -2,42 +2,34 @@
 
 Cloud-based task management system designed in a microservices architecture with AWS deployment in mind.
 
-The project has moved from the planning phase to active backend implementation.  
-The current version includes working authentication, JWT-based authorization, task management functionality, PostgreSQL database integration, Docker-based local environment, and automatically generated Swagger/OpenAPI documentation.
+The project implements a working backend MVP for a task management system. It includes authentication, JWT-based authorization, user roles, task CRUD, task assignment, filtering, searching, notifications, PostgreSQL integration, Docker Compose environment, Swagger/OpenAPI documentation and a simple React web client.
 
 ## Project Goal
 
 The goal of the project is to design and implement a cloud-based task management system for individual users and small teams.
 
-The system supports user authentication, role-based access control, task management, and basic CRUD operations through REST API. The architecture is based on independent backend services that communicate through HTTP REST APIs and share a PostgreSQL database environment.
+The system supports user authentication, role-based access control, task management and basic CRUD operations through REST API. The architecture is based on separated backend services communicating through HTTP REST APIs.
 
-## Main Features (MVP)
-
-Implemented and planned MVP functionality includes:
+## Implemented MVP Features
 
 - user registration
 - user login
 - JWT-based authentication
 - protected endpoints using access tokens
-- basic role-based access control
+- role-based access control
+- administrator role management
 - creating tasks
 - viewing task list and task details
 - editing tasks
 - deleting tasks
 - assigning tasks to users
-- managing task status, priority, and deadline
+- managing task status, priority and deadline
 - filtering tasks by status and priority
-
-## Planned Extensions
-
-Optional future extensions:
-
-- audit log / history of changes
-- notifications
-- monitoring and centralized logging
-- simple web client
-- AWS deployment
-- CI/CD pipeline
+- searching tasks by title and description
+- basic notification flow for task events
+- Swagger/OpenAPI documentation
+- Docker Compose local environment
+- simple React web client
 
 ## Architecture
 
@@ -58,6 +50,10 @@ Responsible for:
 
 ### Task Service
 
+The first registered user automatically receives the `admin` role. All next users receive the `user` role by default. This makes the administrator workflow possible without manual database changes.
+
+### Task Service
+
 Responsible for:
 
 - creating tasks
@@ -67,17 +63,29 @@ Responsible for:
 - deleting tasks
 - assigning tasks to users
 - filtering tasks by status and priority
+- searching tasks by title and description
 - protecting task endpoints with JWT authentication
+- sending basic task-event notifications to Notification Service
 
-### Optional Notification Service
+### Notification Service
 
-Planned as a future extension of the project.
+Responsible for:
 
-It may be responsible for notifying users about:
+- storing notifications
+- listing notifications for the current user
+- marking notifications as read
+- receiving internal notification events from Task Service
 
-- task creation
-- task status changes
-- upcoming deadlines
+### React Web Client
+
+A simple frontend client is included to demonstrate the main backend flow:
+
+- register/login
+- create tasks
+- list and filter tasks
+- update task status
+- delete tasks
+- view notifications
 
 ## Technology Stack
 
@@ -89,6 +97,7 @@ It may be responsible for notifying users about:
 - SQLAlchemy
 - JWT
 - bcrypt
+- httpx
 
 ### Database
 
@@ -106,39 +115,34 @@ It may be responsible for notifying users about:
 
 ### Frontend
 
-- React planned as a future client application
+- React
+- Vite
+
+### API Documentation
+
+- Swagger UI
+- OpenAPI generated automatically by FastAPI
 
 ### Cloud / DevOps
 
-- AWS planned
-- CI/CD planned
-
-## Current Progress
-
-At the current stage, the following elements have been implemented:
-
-- project repository structure
-- separated `auth-service` and `task-service`
-- working FastAPI application for Auth Service
-- working FastAPI application for Task Service
-- PostgreSQL database connection using SQLAlchemy
-- user registration
-- user login
-- password hashing
-- JWT token generation
-- protected `/auth/me` endpoint
-- task CRUD operations
-- task assignment
-- task filtering by status and priority
-- Swagger/OpenAPI documentation for both services
-- Dockerfiles for backend services
-- `docker-compose.yml` with PostgreSQL
-- `.env.example` for environment configuration
-- documentation in the `docs` directory
+- AWS deployment planned
+- GitHub Actions CI included for basic validation
 
 ## API Overview
 
 ### Auth Service
+
+Base URL locally:
+
+```text
+http://localhost:8001
+```
+
+Swagger:
+
+```text
+http://localhost:8001/docs
+```
 
 Available endpoints:
 
@@ -148,21 +152,82 @@ Available endpoints:
 - `POST /auth/login`
 - `GET /auth/me`
 - `GET /users`
-- `GET /users/{id}`
-- `PUT /users/{id}/role`
+- `GET /users/{user_id}`
+- `PUT /users/{user_id}/role`
 
 ### Task Service
+
+Base URL locally:
+
+```text
+http://localhost:8002
+```
+
+Swagger:
+
+```text
+http://localhost:8002/docs
+```
 
 Available endpoints:
 
 - `GET /`
 - `GET /health`
 - `GET /tasks`
-- `GET /tasks/{id}`
+- `GET /tasks/{task_id}`
 - `POST /tasks`
-- `PUT /tasks/{id}`
-- `DELETE /tasks/{id}`
-- `PUT /tasks/{id}/assign`
+- `PUT /tasks/{task_id}`
+- `DELETE /tasks/{task_id}`
+- `PUT /tasks/{task_id}/assign`
+
+Supported query parameters for `GET /tasks`:
+
+- `status`
+- `priority`
+- `search`
+
+### Notification Service
+
+Base URL locally:
+
+```text
+http://localhost:8003
+```
+
+Swagger:
+
+```text
+http://localhost:8003/docs
+```
+
+Available endpoints:
+
+- `GET /`
+- `GET /health`
+- `GET /notifications`
+- `PUT /notifications/{notification_id}/read`
+- `POST /internal/notifications`
+
+### React Client
+
+```text
+http://localhost:3000
+```
+
+## Task Status and Priority
+
+Allowed task statuses:
+
+- `todo`
+- `in_progress`
+- `done`
+- `cancelled`
+
+Allowed task priorities:
+
+- `low`
+- `medium`
+- `high`
 
 ## Task Status and Priority
 
@@ -191,11 +256,143 @@ Example:
   "message": "Description of the error",
   "details": "Optional additional information"
 }
+```
 
+## Running the Project Locally
 
+Create a local `.env` file from `.env.example` if needed, or use default Docker Compose values.
 
+Start the full system:
+
+```bash
+docker compose up --build
+```
+
+Stop the system:
+
+```bash
+docker compose down
+```
+
+Reset the database volume:
+
+```bash
+docker compose down -v
+```
+
+## Example Testing Flow
+
+1. Start the project:
+
+```bash
+docker compose up --build
+```
+
+2. Open Auth Service Swagger:
+
+```text
+http://localhost:8001/docs
+```
+
+3. Register the first user using `POST /auth/register`.
+
+Example:
+
+```json
+{
+  "email": "admin@example.com",
+  "username": "admin",
+  "password": "admin123"
+}
+```
+
+The first user should receive:
+
+```json
+"role": "admin"
+```
+
+4. Log in using `POST /auth/login` and copy the returned `access_token`.
+
+5. Open Task Service Swagger:
+
+```text
+http://localhost:8002/docs
+```
+
+6. Click `Authorize` and paste only the JWT token.
+
+7. Create a task using `POST /tasks`.
+
+8. Test task list, details, update, assignment, filtering, searching and deletion.
+
+9. Open Notification Service Swagger:
+
+```text
+http://localhost:8003/docs
+```
+
+10. Use the same JWT token and check generated notifications with `GET /notifications`.
+
+## Repository Structure
+
+```text
+microservices-backend-project
+├── auth-service
+│   ├── app
+│   ├── Dockerfile
+│   └── requirements.txt
+├── task-service
+│   ├── app
+│   ├── Dockerfile
+│   └── requirements.txt
+├── notification-service
+│   ├── app
+│   ├── Dockerfile
+│   └── requirements.txt
+├── frontend
+│   ├── src
+│   ├── Dockerfile
+│   └── package.json
+├── docs
+├── .github
+│   └── workflows
+├── docker-compose.yml
+├── .env.example
+└── README.md
+```
+
+## Branching and Workflow
+
+The project uses a pull-request based workflow.
+
+General rules:
+
+- no direct push to `main`
+- each change should be implemented in a separate branch
+- each change should be merged through a pull request
+- pull requests should include a short description of implemented changes
 
 ## Project Status
 
-The project is currently under active development.
-Core functionalities are being improved and tested continuously.
+Current status: backend MVP completed with additional demonstration features.
+
+Completed:
+
+- Auth Service implementation
+- Task Service CRUD implementation
+- Notification Service basic implementation
+- PostgreSQL integration
+- JWT-based protection
+- role-based access control
+- Docker Compose environment
+- Swagger documentation
+- simple React client
+- basic CI workflow
+
+Next possible steps:
+
+- add automated tests
+- improve production deployment configuration
+- prepare AWS deployment
+- connect monitoring to AWS CloudWatch

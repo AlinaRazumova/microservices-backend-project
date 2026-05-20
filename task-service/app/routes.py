@@ -1,8 +1,11 @@
+import logging
+import os
+
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
-import os
 
 from .database import get_db
 from .models import Task
@@ -10,9 +13,11 @@ from .schemas import TaskCreate, TaskUpdate, TaskAssign, TaskResponse
 
 router = APIRouter()
 security = HTTPBearer()
+logger = logging.getLogger("task-service")
 
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "change_this_secret_key")
 ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+NOTIFICATION_SERVICE_URL = os.getenv("NOTIFICATION_SERVICE_URL", "http://notification-service:8003")
 
 ALLOWED_STATUSES = ["todo", "in_progress", "done", "cancelled"]
 ALLOWED_PRIORITIES = ["low", "medium", "high"]
@@ -34,10 +39,7 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=error_response(
-                "INVALID_TOKEN",
-                "Token is invalid or expired",
-            ),
+            detail=error_response("INVALID_TOKEN", "Token is invalid or expired"),
         )
 
     user_id = payload.get("sub")
@@ -46,10 +48,7 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
     if user_id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=error_response(
-                "INVALID_TOKEN",
-                "Token does not contain user id",
-            ),
+            detail=error_response("INVALID_TOKEN", "Token does not contain user id"),
         )
 
     return {
@@ -86,10 +85,7 @@ def get_task_or_404(task_id: int, db: Session):
     if task is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=error_response(
-                "TASK_NOT_FOUND",
-                "Task not found",
-            ),
+            detail=error_response("TASK_NOT_FOUND", "Task not found"),
         )
 
     return task
@@ -107,17 +103,34 @@ def check_task_access(task: Task, current_user: dict):
 
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
-        detail=error_response(
-            "FORBIDDEN",
-            "You do not have access to this task",
-        ),
+        detail=error_response("FORBIDDEN", "You do not have access to this task"),
     )
+
+
+def create_notification(user_id: int | None, task_id: int, title: str, message: str):
+    if user_id is None:
+        return
+
+    try:
+        with httpx.Client(timeout=2.0) as client:
+            client.post(
+                f"{NOTIFICATION_SERVICE_URL}/internal/notifications",
+                json={
+                    "user_id": user_id,
+                    "task_id": task_id,
+                    "title": title,
+                    "message": message,
+                },
+            )
+    except Exception as exc:
+        logger.warning("Notification service is not available: %s", exc)
 
 
 @router.get("/tasks", response_model=list[TaskResponse])
 def get_tasks(
     status_filter: str | None = Query(default=None, alias="status"),
     priority_filter: str | None = Query(default=None, alias="priority"),
+    search: str | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
@@ -137,7 +150,11 @@ def get_tasks(
         validate_priority(priority_filter)
         query = query.filter(Task.priority == priority_filter)
 
-    return query.all()
+    if search:
+        pattern = f"%{search}%"
+        query = query.filter((Task.title.ilike(pattern)) | (Task.description.ilike(pattern)))
+
+    return query.order_by(Task.id.asc()).all()
 
 
 @router.get("/tasks/{task_id}", response_model=TaskResponse)
@@ -175,6 +192,20 @@ def create_task(
     db.commit()
     db.refresh(task)
 
+    create_notification(
+        task.owner_id,
+        task.id,
+        "Task created",
+        f"Task '{task.title}' was created.",
+    )
+    if task.assigned_to and task.assigned_to != task.owner_id:
+        create_notification(
+            task.assigned_to,
+            task.id,
+            "Task assigned",
+            f"Task '{task.title}' was assigned to you.",
+        )
+
     return task
 
 
@@ -188,6 +219,7 @@ def update_task(
     task = get_task_or_404(task_id, db)
     check_task_access(task, current_user)
 
+    old_status = task.status
     update_data = task_data.model_dump(exclude_unset=True)
 
     if "status" in update_data:
@@ -201,6 +233,21 @@ def update_task(
 
     db.commit()
     db.refresh(task)
+
+    if "status" in update_data and old_status != task.status:
+        create_notification(
+            task.owner_id,
+            task.id,
+            "Task status changed",
+            f"Task '{task.title}' status changed from {old_status} to {task.status}.",
+        )
+        if task.assigned_to and task.assigned_to != task.owner_id:
+            create_notification(
+                task.assigned_to,
+                task.id,
+                "Task status changed",
+                f"Task '{task.title}' status changed from {old_status} to {task.status}.",
+            )
 
     return task
 
@@ -216,10 +263,7 @@ def delete_task(
     if current_user["role"] != "admin" and task.owner_id != current_user["id"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=error_response(
-                "FORBIDDEN",
-                "Only task owner or admin can delete this task",
-            ),
+            detail=error_response("FORBIDDEN", "Only task owner or admin can delete this task"),
         )
 
     db.delete(task)
@@ -242,15 +286,19 @@ def assign_task(
     if current_user["role"] != "admin" and task.owner_id != current_user["id"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=error_response(
-                "FORBIDDEN",
-                "Only task owner or admin can assign this task",
-            ),
+            detail=error_response("FORBIDDEN", "Only task owner or admin can assign this task"),
         )
 
     task.assigned_to = assign_data.assigned_to
 
     db.commit()
     db.refresh(task)
+
+    create_notification(
+        task.assigned_to,
+        task.id,
+        "Task assigned",
+        f"Task '{task.title}' was assigned to you.",
+    )
 
     return task

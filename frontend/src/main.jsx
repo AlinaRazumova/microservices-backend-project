@@ -6,6 +6,15 @@ const AUTH_API = import.meta.env.VITE_AUTH_API_URL || 'http://localhost:8001';
 const TASK_API = import.meta.env.VITE_TASK_API_URL || 'http://localhost:8002';
 const NOTIFICATION_API = import.meta.env.VITE_NOTIFICATION_API_URL || 'http://localhost:8003';
 
+const emptyTaskForm = {
+  title: '',
+  description: '',
+  status: 'todo',
+  priority: 'medium',
+  deadline: '',
+  assigned_to: '',
+};
+
 function App() {
   const [authView, setAuthView] = useState(localStorage.getItem('token') ? 'dashboard' : 'welcome');
   const [email, setEmail] = useState('');
@@ -19,24 +28,7 @@ function App() {
   const [priorityFilter, setPriorityFilter] = useState('');
   const [search, setSearch] = useState('');
   const [message, setMessage] = useState('');
-
-  const [taskForm, setTaskForm] = useState({
-    title: '',
-    description: '',
-    status: 'todo',
-    priority: 'medium',
-    deadline: '',
-    assigned_to: '',
-  });
-
-  const emptyTaskForm = {
-    title: '',
-    description: '',
-    status: 'todo',
-    priority: 'medium',
-    deadline: '',
-    assigned_to: '',
-  };
+  const [taskForm, setTaskForm] = useState(emptyTaskForm);
 
   const authHeaders = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
@@ -106,6 +98,7 @@ function App() {
       setMe(null);
       setTasks([]);
       setNotifications([]);
+      setTaskForm(emptyTaskForm);
       localStorage.removeItem('token');
       setAuthView('login');
       setMessage(`Session expired or invalid: ${error.message}`);
@@ -137,8 +130,8 @@ function App() {
       const deadlinePattern = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/;
 
       if (taskForm.deadline && !deadlinePattern.test(taskForm.deadline)) {
-      setMessage('Invalid deadline format. Use: YYYY-MM-DD HH:mm');
-      return;
+        setMessage('Invalid deadline format. Use: YYYY-MM-DD HH:mm');
+        return;
       }
 
       const normalizedDeadline = taskForm.deadline.trim().replace(' ', 'T');
@@ -454,13 +447,13 @@ function App() {
             onChange={(e) => setTaskForm({ ...taskForm, deadline: e.target.value })}
             placeholder="Deadline: YYYY-MM-DD HH:mm"
             pattern="[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}"
-            title="Use format: YYYY-MM-DD HH:mm "
+            title="Use format: YYYY-MM-DD HH:mm, for example 2026-05-20 23:59"
           />
 
           <input
             value={taskForm.assigned_to}
             onChange={(e) => setTaskForm({ ...taskForm, assigned_to: e.target.value })}
-            placeholder="Assigned user ID"
+            placeholder="Assigned user ID optional"
           />
 
           <button onClick={createTask}>Create task</button>
@@ -496,11 +489,11 @@ function App() {
         </div>
 
         <div className="list">
-          {tasks.map((task) => (
+          {tasks.map((task, index) => (
             <article className="item" key={task.id}>
-              <h3>{task.title}</h3>
-
-
+              <h3>
+                {index + 1}. {task.title}
+              </h3>
 
               <p>{task.description}</p>
 
@@ -510,14 +503,8 @@ function App() {
               </p>
 
               <div className="row">
-                <button onClick={() => updateTaskStatus(task.id, 'in_progress')}>
-                  Start
-                </button>
-
-                <button onClick={() => updateTaskStatus(task.id, 'done')}>
-                  Done
-                </button>
-
+                <button onClick={() => updateTaskStatus(task.id, 'in_progress')}>Start</button>
+                <button onClick={() => updateTaskStatus(task.id, 'done')}>Done</button>
                 <button className="danger" onClick={() => deleteTask(task.id)}>
                   Delete
                 </button>
@@ -540,9 +527,7 @@ function App() {
               <p>{notification.is_read ? 'Read' : 'Unread'}</p>
 
               {!notification.is_read && (
-                <button onClick={() => markNotificationRead(notification.id)}>
-                  Mark as read
-                </button>
+                <button onClick={() => markNotificationRead(notification.id)}>Mark as read</button>
               )}
             </article>
           ))}
