@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
@@ -14,6 +14,8 @@ from .security import (
 
 router = APIRouter()
 security = HTTPBearer()
+
+ALLOWED_ROLES = ["user", "admin", "manager"]
 
 
 def error_response(code: str, message: str, details: str | None = None):
@@ -34,10 +36,7 @@ def get_current_user(
     if payload is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=error_response(
-                "INVALID_TOKEN",
-                "Token is invalid or expired",
-            ),
+            detail=error_response("INVALID_TOKEN", "Token is invalid or expired"),
         )
 
     user_id = payload.get("sub")
@@ -45,10 +44,7 @@ def get_current_user(
     if user_id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=error_response(
-                "INVALID_TOKEN",
-                "Token does not contain user id",
-            ),
+            detail=error_response("INVALID_TOKEN", "Token does not contain user id"),
         )
 
     user = db.query(User).filter(User.id == int(user_id)).first()
@@ -56,10 +52,7 @@ def get_current_user(
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=error_response(
-                "USER_NOT_FOUND",
-                "User from token does not exist",
-            ),
+            detail=error_response("USER_NOT_FOUND", "User from token does not exist"),
         )
 
     return user
@@ -69,10 +62,7 @@ def require_admin(current_user: User = Depends(get_current_user)):
     if current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=error_response(
-                "FORBIDDEN",
-                "Only admin can perform this action",
-            ),
+            detail=error_response("FORBIDDEN", "Only admin can perform this action"),
         )
 
     return current_user
@@ -85,10 +75,7 @@ def register_user(user_data: UserRegister, db: Session = Depends(get_db)):
     if existing_email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=error_response(
-                "EMAIL_ALREADY_EXISTS",
-                "User with this email already exists",
-            ),
+            detail=error_response("EMAIL_ALREADY_EXISTS", "User with this email already exists"),
         )
 
     existing_username = db.query(User).filter(User.username == user_data.username).first()
@@ -96,17 +83,17 @@ def register_user(user_data: UserRegister, db: Session = Depends(get_db)):
     if existing_username:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=error_response(
-                "USERNAME_ALREADY_EXISTS",
-                "User with this username already exists",
-            ),
+            detail=error_response("USERNAME_ALREADY_EXISTS", "User with this username already exists"),
         )
+
+    users_count = db.query(User).count()
+    user_role = "admin" if users_count == 0 else "user"
 
     new_user = User(
         email=user_data.email,
         username=user_data.username,
         hashed_password=hash_password(user_data.password),
-        role="user",
+        role=user_role,
     )
 
     db.add(new_user)
@@ -120,28 +107,17 @@ def register_user(user_data: UserRegister, db: Session = Depends(get_db)):
 def login_user(user_data: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == user_data.email).first()
 
-    if user is None:
+    if user is None or not verify_password(user_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=error_response(
-                "INVALID_CREDENTIALS",
-                "Invalid email or password",
-            ),
-        )
-
-    if not verify_password(user_data.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=error_response(
-                "INVALID_CREDENTIALS",
-                "Invalid email or password",
-            ),
+            detail=error_response("INVALID_CREDENTIALS", "Invalid email or password"),
         )
 
     token = create_access_token(
         data={
             "sub": str(user.id),
             "email": user.email,
+            "username": user.username,
             "role": user.role,
         }
     )
@@ -156,10 +132,17 @@ def get_me(current_user: User = Depends(get_current_user)):
 
 @router.get("/users", response_model=list[UserResponse])
 def get_users(
+    search: str | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    return db.query(User).all()
+    query = db.query(User)
+
+    if search:
+        pattern = f"%{search}%"
+        query = query.filter((User.email.ilike(pattern)) | (User.username.ilike(pattern)))
+
+    return query.order_by(User.id.asc()).all()
 
 
 @router.get("/users/{user_id}", response_model=UserResponse)
@@ -173,19 +156,13 @@ def get_user_by_id(
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=error_response(
-                "USER_NOT_FOUND",
-                "User not found",
-            ),
+            detail=error_response("USER_NOT_FOUND", "User not found"),
         )
 
     if current_user.role != "admin" and current_user.id != user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=error_response(
-                "FORBIDDEN",
-                "You can view only your own profile",
-            ),
+            detail=error_response("FORBIDDEN", "You can view only your own profile"),
         )
 
     return user
@@ -198,9 +175,7 @@ def update_user_role(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    allowed_roles = ["user", "admin", "manager"]
-
-    if role_data.role not in allowed_roles:
+    if role_data.role not in ALLOWED_ROLES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=error_response(
@@ -214,10 +189,7 @@ def update_user_role(
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=error_response(
-                "USER_NOT_FOUND",
-                "User not found",
-            ),
+            detail=error_response("USER_NOT_FOUND", "User not found"),
         )
 
     user.role = role_data.role

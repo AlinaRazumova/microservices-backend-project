@@ -4,13 +4,18 @@ services:
     container_name: microservices_postgres
     restart: always
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: tasks_db
+      POSTGRES_USER: ${POSTGRES_USER:-user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-tasks_db}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-user} -d ${POSTGRES_DB:-tasks_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   auth-service:
     build:
@@ -18,14 +23,16 @@ services:
     container_name: auth_service
     restart: always
     ports:
-      - "8001:8001"
+      - "${AUTH_SERVICE_PORT:-8001}:8001"
     environment:
-      AUTH_DATABASE_URL: postgresql://user:password@db:5432/tasks_db
-      JWT_SECRET_KEY: change_this_secret_key
-      JWT_ALGORITHM: HS256
-      JWT_EXPIRE_MINUTES: 60
+      AUTH_DATABASE_URL: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-tasks_db}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change_this_secret_key}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-60}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
   task-service:
     build:
@@ -33,13 +40,50 @@ services:
     container_name: task_service
     restart: always
     ports:
-      - "8002:8002"
+      - "${TASK_SERVICE_PORT:-8002}:8002"
     environment:
-      TASK_DATABASE_URL: postgresql://user:password@db:5432/tasks_db
-      JWT_SECRET_KEY: change_this_secret_key
-      JWT_ALGORITHM: HS256
+      TASK_DATABASE_URL: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-tasks_db}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change_this_secret_key}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      NOTIFICATION_SERVICE_URL: http://notification-service:8003
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+      notification-service:
+        condition: service_started
+
+  notification-service:
+    build:
+      context: ./notification-service
+    container_name: notification_service
+    restart: always
+    ports:
+      - "${NOTIFICATION_SERVICE_PORT:-8003}:8003"
+    environment:
+      NOTIFICATION_DATABASE_URL: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-tasks_db}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change_this_secret_key}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: frontend_client
+    restart: always
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    environment:
+      VITE_AUTH_API_URL: http://localhost:${AUTH_SERVICE_PORT:-8001}
+      VITE_TASK_API_URL: http://localhost:${TASK_SERVICE_PORT:-8002}
+      VITE_NOTIFICATION_API_URL: http://localhost:${NOTIFICATION_SERVICE_PORT:-8003}
+    depends_on:
+      - auth-service
+      - task-service
+      - notification-service
 
 volumes:
   postgres_data:

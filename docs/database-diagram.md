@@ -1,51 +1,47 @@
-# Database diagram
+# Database Diagram
+
+The project uses PostgreSQL as a relational database.
 
 ```mermaid
 erDiagram
     USERS {
         int id PK
-        string username
-        string email
-        string password_hash
+        string email UK
+        string username UK
+        string hashed_password
+        string role
         datetime created_at
-    }
-
-    ROLES {
-        int id PK
-        string name
-    }
-
-    USER_ROLES {
-        int user_id FK
-        int role_id FK
     }
 
     TASKS {
         int id PK
         string title
-        string description
+        text description
         string status
         string priority
         datetime deadline
-        int assigned_user_id FK
-        int created_by FK
+        int owner_id
+        int assigned_to
         datetime created_at
+        datetime updated_at
     }
 
     NOTIFICATIONS {
         int id PK
-        int user_id FK
-        int task_id FK
-        string type
-        string message
+        int user_id
+        int task_id
+        string title
+        text message
         boolean is_read
         datetime created_at
     }
 
-    USERS ||--o{ TASKS : creates
-    USERS ||--o{ TASKS : assigned_to
-    USERS ||--o{ USER_ROLES : has
-    ROLES ||--o{ USER_ROLES : contains
+    USERS ||--o{ TASKS : owns
+    USERS ||--o{ TASKS : assigned
     USERS ||--o{ NOTIFICATIONS : receives
     TASKS ||--o{ NOTIFICATIONS : generates
 ```
+
+## Notes
+
+The current implementation keeps service boundaries simple and stores identifiers such as `owner_id`, `assigned_to` and `user_id` as integer references. In a production system, this could be extended with stricter database-level foreign keys or separate databases per service.
