@@ -191,3 +191,11 @@ Example:
   "message": "Description of the error",
   "details": "Optional additional information"
 }
+
+
+
+
+## Project Status
+
+The project is currently under active development.
+Core functionalities are being improved and tested continuously.
