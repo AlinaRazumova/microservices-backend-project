@@ -46,7 +46,9 @@ Responsible for:
 - JWT token validation
 - current user information endpoint
 - user data access
-- role management
+- basic role management
+
+### Task Service
 
 The first registered user automatically receives the `admin` role. All next users receive the `user` role by default. This makes the administrator workflow possible without manual database changes.
 
@@ -105,6 +107,11 @@ A simple frontend client is included to demonstrate the main backend flow:
 
 - Docker
 - Docker Compose
+
+### API Documentation
+
+- Swagger UI
+- OpenAPI generated automatically by FastAPI
 
 ### Frontend
 
@@ -206,6 +213,21 @@ Available endpoints:
 ```text
 http://localhost:3000
 ```
+
+## Task Status and Priority
+
+Allowed task statuses:
+
+- `todo`
+- `in_progress`
+- `done`
+- `cancelled`
+
+Allowed task priorities:
+
+- `low`
+- `medium`
+- `high`
 
 ## Task Status and Priority
 
