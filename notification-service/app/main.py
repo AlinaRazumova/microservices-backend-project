@@ -8,13 +8,12 @@ from .database import Base, engine
 from .routes import router
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
-logger = logging.getLogger("auth-service")
 
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title="Auth Service",
-    description="Authentication, JWT authorization and user role management service",
+    title="Notification Service",
+    description="Notification service for task events",
     version="1.0.0",
 )
 
@@ -31,15 +30,9 @@ app.include_router(router)
 
 @app.get("/")
 def root():
-    return {
-        "service": "Auth Service",
-        "status": "running",
-    }
+    return {"service": "Notification Service", "status": "running"}
 
 
 @app.get("/health")
 def health_check():
-    return {
-        "status": "healthy",
-        "service": "auth-service",
-    }
+    return {"status": "healthy", "service": "notification-service"}
