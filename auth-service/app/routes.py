@@ -68,6 +68,16 @@ def require_admin(current_user: User = Depends(get_current_user)):
     return current_user
 
 
+def require_admin_or_manager(current_user: User = Depends(get_current_user)):
+    if current_user.role not in ["admin", "manager"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=error_response("FORBIDDEN", "Only admin or manager can view users"),
+        )
+
+    return current_user
+
+
 @router.post("/auth/register", response_model=UserResponse)
 def register_user(user_data: UserRegister, db: Session = Depends(get_db)):
     existing_email = db.query(User).filter(User.email == user_data.email).first()
@@ -134,7 +144,7 @@ def get_me(current_user: User = Depends(get_current_user)):
 def get_users(
     search: str | None = Query(default=None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_admin_or_manager),
 ):
     query = db.query(User)
 
@@ -197,3 +207,13 @@ def update_user_role(
     db.refresh(user)
 
     return user
+
+
+@router.get("/internal/auth/validate")
+def validate_token_internal(current_user: User = Depends(get_current_user)):
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "username": current_user.username,
+        "role": current_user.role,
+    }

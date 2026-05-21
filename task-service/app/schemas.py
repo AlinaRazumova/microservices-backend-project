@@ -40,3 +40,14 @@ class TaskResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class AuditLogResponse(BaseModel):
+    id: int
+    task_id: Optional[int]
+    actor_id: int
+    action: str
+    details: Optional[str]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
