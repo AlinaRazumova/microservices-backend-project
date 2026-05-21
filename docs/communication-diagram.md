@@ -31,3 +31,16 @@ sequenceDiagram
     DB-->>Notif: Notifications
     Notif-->>Client: Notification list
 ```
+
+
+## Runtime service-to-service communication
+
+```text
+React Client -> Auth Service: login/register/me/users
+React Client -> Task Service: task CRUD, assignment, audit/history
+React Client -> Notification Service: user notifications
+Task Service -> Auth Service: GET /internal/auth/validate
+Notification Service -> Auth Service: GET /internal/auth/validate
+Task Service -> Notification Service: POST /internal/notifications
+Auth Service / Task Service / Notification Service -> PostgreSQL
+```

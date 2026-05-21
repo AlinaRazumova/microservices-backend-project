@@ -45,11 +45,14 @@ services:
       TASK_DATABASE_URL: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-tasks_db}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change_this_secret_key}
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      AUTH_SERVICE_URL: http://auth-service:8001
       NOTIFICATION_SERVICE_URL: http://notification-service:8003
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     depends_on:
       db:
         condition: service_healthy
+      auth-service:
+        condition: service_started
       notification-service:
         condition: service_started
 
@@ -64,10 +67,13 @@ services:
       NOTIFICATION_DATABASE_URL: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-tasks_db}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change_this_secret_key}
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      AUTH_SERVICE_URL: http://auth-service:8001
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     depends_on:
       db:
         condition: service_healthy
+      auth-service:
+        condition: service_started
 
   frontend:
     build:
